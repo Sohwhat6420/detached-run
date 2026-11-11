@@ -81,7 +81,7 @@ Windows 11 (build 26200), Node 22, 7 Nov 2026:
 | Recycled PID (creation time mismatch) | reads dead |
 | Whole suite | 17 checks, all pass |
 
-Only Windows 11 on one machine so far, re-run on 11 Nov 2026 (all 17 pass in 16.5 s) and on every push in GitHub Actions (`windows-latest`).
+Only Windows 11 on one machine so far, re-run on 11 Nov 2026 (all 17 pass in 16.5 s) and on every push in GitHub Actions on Windows Server (`windows-latest`, passing).
 
 ## Limits
 
