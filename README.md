@@ -1,12 +1,16 @@
 # detached-run
 
+> [!NOTE]
+> **Part of [headless-kit](https://github.com/Sohwhat6420/headless-kit).** The same tool ships there as
+> [`tools/guards/detached-run`](https://github.com/Sohwhat6420/headless-kit/tree/main/tools/guards/detached-run),
+> next to the kit's other agent-first tools. This repository is the standalone copy, kept for anyone who wants
+> only this one file.
+
 [![test](https://github.com/Sohwhat6420/detached-run/actions/workflows/test.yml/badge.svg)](https://github.com/Sohwhat6420/detached-run/actions/workflows/test.yml)
 ![licence: MIT](https://img.shields.io/badge/licence-MIT-blue)
 ![platform: Windows 11](https://img.shields.io/badge/platform-Windows%2011-0078d4)
-![node: 18+](https://img.shields.io/badge/node-18%2B-green)
-![dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen)
 
-**Start a Windows background process that outlives whatever started it, and never flashes a window.** One Node file, no dependencies.
+**The nohup Windows never had: a background process that outlives its parent and never flashes a window.** One Node file, no dependencies.
 
 **Why it's interesting:** Windows has no clean "nohup". A child process dies with its parent app, and if that app is MSIX-packaged (as many modern desktop apps are) the child also inherits the package's *virtualised* file system and registry, so anything it "installs" silently vanishes. `detached-run` side-steps both by asking **WMI** to create the process, so its parent is `WmiPrvSE.exe`, not you. A test suite then *proves* zero windows appear, using a 50 ms window watcher with a positive control.
 
