@@ -62,6 +62,8 @@ node detached-run.mjs start web --cwd C:/work/site -- node server.js --port 8080
 
 node detached-run.mjs status web ; echo $?      # prints the record plus "alive":true ; exit 0
 node detached-run.mjs stop web
+node detached-run.mjs logs web                  # the last 20 lines of web's log
+node detached-run.mjs logs web --tail 100       # the last 100 lines; exit 2 when web has no record
 ```
 
 Rules: names match `[A-Za-z0-9._-]{1,64}`; the command goes after `--`; `start` refuses (exit 4) if that name is already running.
