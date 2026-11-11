@@ -68,6 +68,9 @@ await waitReady(() => watchOut); // let windowwatch take its baseline
 const targets = [
   ['t-node', [process.execPath, '-e', 'setTimeout(()=>{},60000)']],
   ['t-python', ['python', '-c', 'import time; print("hello", flush=True); time.sleep(60)']],
+  // The ticker from examples/demo.mjs, finite: exactly 30 ticks, then it stays alive silently,
+  // so the logs checks below compare against a log that no longer grows.
+  ['t-ticker', [process.execPath, '-e', 'let i=0; const t=setInterval(()=>{ console.log("tick",++i); if (i>=30) clearInterval(t); },50); setTimeout(()=>{},60000)']],
 ];
 const pids = new Set();
 for (const [name, cmd] of targets) {
@@ -87,6 +90,22 @@ for (const [name, cmd] of targets) {
 }
 sleep(2000);
 check(readFileSync(join(dir, 't-python.log'), 'utf8').includes('hello'), 't-python stdout reached its log');
+
+// logs: the default prints the last 20 lines, --tail N prints the last N, an unknown name exits 2.
+{
+  const logOf = () => readFileSync(join(dir, 't-ticker.log'), 'utf8').split('\n').filter((l) => l !== '');
+  const until = Date.now() + 10000;
+  while (logOf().length < 30 && Date.now() < until) sleep(100);
+  const lines = logOf();
+  check(lines.length === 30, 'ticker wrote its 30 ticks to its log', `${lines.length} lines`);
+  const dfltLines = dr('logs', 't-ticker').stdout.replace(/\n$/, '').split('\n');
+  check(dfltLines.length === 20 && dfltLines[0] === lines[10] && dfltLines[19] === lines[29],
+    'logs prints the last 20 lines by default', `${dfltLines.length} lines`);
+  const tailLines = dr('logs', 't-ticker', '--tail', '3').stdout.replace(/\n$/, '').split('\n');
+  check(tailLines.length === 3 && tailLines[0] === lines[27] && tailLines[2] === lines[29],
+    'logs --tail 3 prints the last 3 lines', `${tailLines.length} lines`);
+  check(dr('logs', 't-absent').status === 2, 'logs of a name with no record exits 2');
+}
 
 for (const [name] of targets) {
   const k = dr('stop', name);

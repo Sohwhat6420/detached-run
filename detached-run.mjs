@@ -6,6 +6,7 @@
  *   node detached-run.mjs start <name> [--cwd DIR] -- <exe> [args...]
  *   node detached-run.mjs status <name>      exit 0 alive · 3 dead · 2 no PID file
  *   node detached-run.mjs stop <name>        kills the recorded PID (and its tree), never by name
+ *   node detached-run.mjs logs <name> [--tail N]   last 20 lines of the job's log (or N); exit 2 no record
  *   node detached-run.mjs list
  *
  * ── HOW ───────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@
  * so a recycled PID never reads as alive.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, openSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, openSync, renameSync, statSync, readSync, closeSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -137,6 +138,36 @@ function status(name) {
   return alive ? 0 : 3;
 }
 
+function logs(name, tail) {
+  const rec = readRec(name);
+  if (!rec) { console.log(`${name}: no PID file`); return 2; }
+  const logPath = rec.log || join(RUN_DIR, `${name}.log`);
+  let size;
+  try { size = statSync(logPath).size; } catch { return 0; } // recorded, but nothing logged yet
+  if (size === 0 || tail === 0) return 0;
+  // Read backwards in chunks until we hold more newlines than we need, so a large log is never
+  // loaded whole. 0x0A never appears inside a multi-byte UTF-8 sequence, so counting bytes is safe.
+  const fd = openSync(logPath, 'r');
+  try {
+    const CHUNK = 64 * 1024;
+    const parts = [];
+    let end = size, seen = 0;
+    while (end > 0 && seen <= tail) {
+      const start = Math.max(0, end - CHUNK);
+      const buf = Buffer.alloc(end - start);
+      readSync(fd, buf, 0, buf.length, start);
+      parts.unshift(buf);
+      for (const b of buf) if (b === 0x0a) seen++;
+      end = start;
+    }
+    const lines = Buffer.concat(parts).toString('utf8').split('\n');
+    if (end > 0) lines.shift(); // first line is partial: we stopped mid-file
+    if (lines[lines.length - 1] === '') lines.pop(); // trailing newline is not an empty line
+    if (lines.length) console.log(lines.slice(-tail).join('\n'));
+    return 0;
+  } finally { closeSync(fd); }
+}
+
 function stop(name) {
   const rec = readRec(name);
   if (!rec || !rec.pid) { console.log(`${name}: nothing recorded`); return 2; }
@@ -161,11 +192,20 @@ function main(argv) {
   if (verb === 'supervise') { supervise(name); return null; }
   if (verb === 'list') return list();
   if (!verb || !name || !NAME_RE.test(name)) {
-    console.error('usage: detached-run.mjs start <name> [--cwd DIR] -- <exe> [args...] | status <name> | stop <name> | list');
+    console.error('usage: detached-run.mjs start <name> [--cwd DIR] -- <exe> [args...] | status <name> | stop <name> | logs <name> [--tail N] | list');
     return 2;
   }
   if (verb === 'status') return status(name);
   if (verb === 'stop') return stop(name);
+  if (verb === 'logs') {
+    let tail = 20;
+    const ti = rest.indexOf('--tail');
+    if (ti >= 0) {
+      tail = Number(rest[ti + 1]);
+      if (!Number.isInteger(tail) || tail < 0) { console.error('detached-run: --tail needs a non-negative integer'); return 2; }
+    }
+    return logs(name, tail);
+  }
   if (verb === 'start') {
     const dd = rest.indexOf('--');
     if (dd < 0 || dd === rest.length - 1) { console.error('detached-run: give the command after --'); return 2; }
